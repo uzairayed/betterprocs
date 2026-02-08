@@ -464,6 +464,7 @@ fn render_keymap_bar(frame: &mut Frame, area: Rect, app: &App) {
                 ("s", "start"),
                 ("x", "stop"),
                 ("r", "restart"),
+                ("c", "clear"),
                 ("Tab", "terminal"),
                 ("z", "zoom"),
 ("`", "ports"),

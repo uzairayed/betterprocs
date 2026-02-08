@@ -37,6 +37,11 @@ impl TerminalScreen {
         self.parser.screen_mut().set_size(rows, cols);
     }
 
+    pub fn clear(&mut self) {
+        self.parser = vt100::Parser::new(self.rows, self.cols, 10_000);
+        self.scroll_offset = 0;
+    }
+
     pub fn scroll_up(&mut self, n: usize) {
         self.scroll_offset += n;
         self.apply_scroll();

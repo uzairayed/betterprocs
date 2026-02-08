@@ -10,6 +10,7 @@ pub enum Action {
     StopProcess,
     RestartProcess,
     ForceKill,
+    ClearLogs,
     ToggleKeymap,
     ScrollUp(u16),
     ScrollDown(u16),

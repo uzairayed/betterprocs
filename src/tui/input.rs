@@ -25,6 +25,10 @@ pub fn handle_input(event: &Event, app: &App) -> Action {
 }
 
 fn handle_process_list_keys(key: &KeyEvent) -> Action {
+    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Action::Quit;
+    }
+
     match key.code {
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Char('j') | KeyCode::Down => Action::SelectNext,
@@ -33,11 +37,11 @@ fn handle_process_list_keys(key: &KeyEvent) -> Action {
         KeyCode::Char('x') => Action::StopProcess,
         KeyCode::Char('X') => Action::ForceKill,
         KeyCode::Char('r') => Action::RestartProcess,
+        KeyCode::Char('c') => Action::ClearLogs,
         KeyCode::Tab | KeyCode::Enter => Action::FocusTerminal,
         KeyCode::Char('z') => Action::ToggleZoom,
         KeyCode::Char('?') => Action::ToggleKeymap,
         KeyCode::Char('`') | KeyCode::F(2) => Action::SwitchToPortKiller,
-        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
         _ => Action::None,
     }
 }

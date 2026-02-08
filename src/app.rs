@@ -187,6 +187,12 @@ impl App {
                 let idx = self.ui_state.selected_process;
                 let _ = self.process_manager.restart(idx);
             }
+            Action::ClearLogs => {
+                let idx = self.ui_state.selected_process;
+                if let Some(handle) = self.process_manager.processes.get_mut(idx) {
+                    handle.screen.clear();
+                }
+            }
             Action::SelectIndex(idx) => {
                 let count = self.process_manager.process_count();
                 if idx < count {
