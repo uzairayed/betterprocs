@@ -200,64 +200,107 @@ fn render_output_pane(frame: &mut Frame, area: Rect, app: &App) {
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
+    // Compute selection range in terminal-absolute coordinates
+    let selection = compute_selection(app);
+    let copy_flash = app.ui_state.copy_flash > 0;
+
     // Render terminal output from vt100 screen
+    // vt100's set_scrollback() makes cell() return scrollback-aware content,
+    // so we just render row 0..height directly.
     if let Some(handle) = handle {
         let screen = handle.screen.screen();
-        let scroll_offset = handle.screen.scroll_offset;
 
         for row in 0..inner.height {
-            let screen_row = if scroll_offset > 0 {
-                // When scrolled back, show scrollback content
-                let scrollback_row = scroll_offset as i64 - (inner.height as i64 - row as i64);
-                if scrollback_row >= 0 {
-                    // This row is in scrollback
-                    let scrollback = screen.scrollback();
-                    let target = scrollback as i64 - scroll_offset as i64 + row as i64;
-                    if target >= 0 && (target as usize) < scrollback {
-                        // Render scrollback row
-                        let line = render_scrollback_row(screen, target as usize, inner.width);
-                        frame.render_widget(
-                            Paragraph::new(line),
-                            Rect::new(inner.x, inner.y + row, inner.width, 1),
-                        );
-                        continue;
-                    }
-                    // Fall through to render screen rows
-                    row
-                } else {
-                    row
-                }
-            } else {
-                row
-            };
-
-            // Render current screen row
-            let line = render_screen_row(screen, screen_row, inner.width);
+            let abs_y = inner.y + row;
+            let line = render_screen_row(screen, row, inner.width, inner.x, abs_y, &selection, copy_flash);
             frame.render_widget(
                 Paragraph::new(line),
-                Rect::new(inner.x, inner.y + row, inner.width, 1),
+                Rect::new(inner.x, abs_y, inner.width, 1),
             );
         }
     }
 }
 
-fn render_screen_row(screen: &vt100::Screen, row: u16, cols: u16) -> Line<'static> {
+/// Normalized selection: (start_row, start_col, end_row, end_col) in absolute terminal coords.
+/// Returns None if no active selection.
+fn compute_selection(app: &App) -> Option<(u16, u16, u16, u16)> {
+    let start = app.ui_state.selection_start?;
+    let end = app.ui_state.selection_end?;
+
+    // Normalize so start <= end (row-major order)
+    if start.1 < end.1 || (start.1 == end.1 && start.0 <= end.0) {
+        Some((start.1, start.0, end.1, end.0))
+    } else {
+        Some((end.1, end.0, start.1, start.0))
+    }
+}
+
+/// Check if a cell at (abs_x, abs_y) is within the selection.
+fn is_selected(abs_x: u16, abs_y: u16, sel: &Option<(u16, u16, u16, u16)>) -> bool {
+    let (sr, sc, er, ec) = match sel {
+        Some(s) => *s,
+        None => return false,
+    };
+
+    if abs_y < sr || abs_y > er {
+        return false;
+    }
+    if abs_y == sr && abs_y == er {
+        // Single row selection
+        return abs_x >= sc && abs_x <= ec;
+    }
+    if abs_y == sr {
+        return abs_x >= sc;
+    }
+    if abs_y == er {
+        return abs_x <= ec;
+    }
+    // Middle rows are fully selected
+    true
+}
+
+const SELECT_STYLE: Style = Style::new().bg(Color::Indexed(240)).fg(Color::White);
+const COPIED_STYLE: Style = Style::new().bg(Color::Green).fg(Color::Black);
+
+fn render_screen_row(
+    screen: &vt100::Screen,
+    row: u16,
+    cols: u16,
+    abs_x_start: u16,
+    abs_y: u16,
+    selection: &Option<(u16, u16, u16, u16)>,
+    copy_flash: bool,
+) -> Line<'static> {
     let mut spans = Vec::new();
     let mut current_text = String::new();
     let mut current_style = Style::default();
 
     for col in 0..cols {
         let cell = screen.cell(row, col);
-        if let Some(cell) = cell {
-            let style = vt100_cell_to_style(&cell);
+        let abs_x = abs_x_start + col;
+        let selected = is_selected(abs_x, abs_y, selection);
 
-            if style != current_style && !current_text.is_empty() {
-                spans.push(Span::styled(current_text.clone(), current_style));
-                current_text.clear();
-            }
-            current_style = style;
-            current_text.push(cell.contents().chars().next().unwrap_or(' '));
+        let base_style = match &cell {
+            Some(cell) => vt100_cell_to_style(cell),
+            None => Style::default(),
+        };
+
+        let style = if selected {
+            if copy_flash { COPIED_STYLE } else { SELECT_STYLE }
+        } else {
+            base_style
+        };
+
+        let ch = cell
+            .map(|c| c.contents().chars().next().unwrap_or(' '))
+            .unwrap_or(' ');
+
+        if style != current_style && !current_text.is_empty() {
+            spans.push(Span::styled(current_text.clone(), current_style));
+            current_text.clear();
         }
+        current_style = style;
+        current_text.push(ch);
     }
 
     if !current_text.is_empty() {
@@ -366,12 +409,6 @@ fn render_port_killer(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_stateful_widget(table, inner, &mut state);
 }
 
-fn render_scrollback_row(_screen: &vt100::Screen, _index: usize, cols: u16) -> Line<'static> {
-    // For simplicity, render scrollback as empty for now
-    // Full scrollback rendering requires accessing scrollback buffer rows
-    Line::from(Span::raw(" ".repeat(cols as usize)))
-}
-
 fn vt100_cell_to_style(cell: &vt100::Cell) -> Style {
     let mut style = Style::default();
 
@@ -417,7 +454,7 @@ fn render_keymap_bar(frame: &mut Frame, area: Rect, app: &App) {
             ("x", "kill"),
             ("X", "force kill"),
             ("Del", "clear"),
-            ("Esc", "back"),
+            ("`", "processes"),
         ]
     } else {
         match app.ui_state.scope {
@@ -429,12 +466,11 @@ fn render_keymap_bar(frame: &mut Frame, area: Rect, app: &App) {
                 ("r", "restart"),
                 ("Tab", "terminal"),
                 ("z", "zoom"),
-                ("F2", "ports"),
+("`", "ports"),
             ],
             Scope::Terminal | Scope::TerminalZoomed => vec![
-                ("Esc", "back"),
-                ("Ctrl-a", "process list"),
-                ("Ctrl-c", "quit"),
+                ("Tab", "back"),
+                ("drag", "select+copy"),
             ],
         }
     };

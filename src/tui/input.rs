@@ -36,7 +36,7 @@ fn handle_process_list_keys(key: &KeyEvent) -> Action {
         KeyCode::Tab | KeyCode::Enter => Action::FocusTerminal,
         KeyCode::Char('z') => Action::ToggleZoom,
         KeyCode::Char('?') => Action::ToggleKeymap,
-        KeyCode::F(2) => Action::SwitchToPortKiller,
+        KeyCode::Char('`') | KeyCode::F(2) => Action::SwitchToPortKiller,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
         _ => Action::None,
     }
@@ -50,7 +50,7 @@ fn handle_port_killer_keys(key: &KeyEvent) -> Action {
     }
 
     match key.code {
-        KeyCode::Esc | KeyCode::F(1) | KeyCode::Tab => Action::SwitchToProcesses,
+        KeyCode::Esc | KeyCode::F(1) | KeyCode::Tab | KeyCode::Char('`') => Action::SwitchToProcesses,
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Down => Action::SelectNext,
         KeyCode::Up => Action::SelectPrev,
@@ -66,12 +66,18 @@ fn handle_port_killer_keys(key: &KeyEvent) -> Action {
 }
 
 fn handle_terminal_keys(key: &KeyEvent) -> Action {
-    // Tab goes back to process list
     if key.code == KeyCode::Tab {
         return Action::FocusProcessList;
     }
 
-    // Ctrl-a also goes back
+    if key.code == KeyCode::Char('q') {
+        return Action::Quit;
+    }
+
+    if key.code == KeyCode::Char('`') {
+        return Action::SwitchToPortKiller;
+    }
+
     if key.modifiers.contains(KeyModifiers::CONTROL) {
         match key.code {
             KeyCode::Char('a') => return Action::FocusProcessList,
@@ -79,14 +85,10 @@ fn handle_terminal_keys(key: &KeyEvent) -> Action {
         }
     }
 
-    match key.code {
-        _ => {
-            if let Some(bytes) = key_event_to_bytes(key) {
-                Action::SendInput(bytes)
-            } else {
-                Action::None
-            }
-        }
+    if let Some(bytes) = key_event_to_bytes(key) {
+        Action::SendInput(bytes)
+    } else {
+        Action::None
     }
 }
 
@@ -99,15 +101,41 @@ fn handle_mouse(mouse: &MouseEvent, app: &App) -> Action {
             let x = mouse.column;
             let y = mouse.row;
 
+            // Click on status bar (row 0) — check for tab clicks
+            if y == 0 {
+                // The status bar looks like: " betterprocs  X/Y running  [Processes] [Port Killer]"
+                // Rather than computing exact spans, find the tab text positions
+                let running = app.process_manager.processes.iter()
+                    .filter(|p| p.status.is_running()).count();
+                let total = app.process_manager.process_count();
+                let prefix_len = " betterprocs ".len()
+                    + format!(" {}/{} running ", running, total).len()
+                    + 1; // space
+                let processes_start = prefix_len;
+                let processes_end = processes_start + "[Processes]".len();
+                let portkiller_start = processes_end + 1; // space
+                let portkiller_end = portkiller_start + "[Port Killer]".len();
+
+                let col = x as usize;
+                if col >= processes_start && col < processes_end {
+                    return Action::SwitchToProcesses;
+                }
+                if col >= portkiller_start && col <= portkiller_end {
+                    return Action::SwitchToPortKiller;
+                }
+                return Action::None;
+            }
+
             if x < list_width && !matches!(app.ui_state.scope, Scope::TerminalZoomed) {
-                // Click in process list
+                // Click in process list area — always focus it
                 if y >= 2 {
                     let idx = (y - 2) as usize;
                     if idx < app.process_manager.process_count() {
                         return Action::SelectIndex(idx);
                     }
                 }
-                Action::None
+                // Clicked empty space in process list — just focus it
+                Action::FocusProcessList
             } else {
                 // Click in output pane — start selection
                 Action::MouseDragStart(mouse.column, mouse.row)
@@ -118,11 +146,19 @@ fn handle_mouse(mouse: &MouseEvent, app: &App) -> Action {
             Action::MouseDragEnd(mouse.column, mouse.row)
         }
         MouseEventKind::Up(MouseButton::Left) => {
-            // End drag — if there's a selection, copy it
-            if app.ui_state.selection_start.is_some() {
+            if app.ui_state.selection_start.is_some()
+                && app.ui_state.selection_end.is_some()
+            {
                 Action::CopySelection
             } else {
-                Action::ClickOutputPane
+                // Only focus output pane if the click was in the output area
+                if mouse.column >= list_width
+                    || matches!(app.ui_state.scope, Scope::TerminalZoomed)
+                {
+                    Action::ClickOutputPane
+                } else {
+                    Action::None
+                }
             }
         }
         MouseEventKind::ScrollUp => Action::ScrollUp(3),

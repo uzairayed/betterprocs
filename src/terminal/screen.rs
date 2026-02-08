@@ -38,16 +38,25 @@ impl TerminalScreen {
     }
 
     pub fn scroll_up(&mut self, n: usize) {
-        let max = self.parser.screen().scrollback();
-        self.scroll_offset = (self.scroll_offset + n).min(max);
+        self.scroll_offset += n;
+        self.apply_scroll();
     }
 
     pub fn scroll_down(&mut self, n: usize) {
         self.scroll_offset = self.scroll_offset.saturating_sub(n);
+        self.apply_scroll();
     }
 
     pub fn scroll_to_bottom(&mut self) {
         self.scroll_offset = 0;
+        self.apply_scroll();
     }
 
+    fn apply_scroll(&mut self) {
+        // set_scrollback clamps to the actual scrollback buffer length internally,
+        // so we don't need to know the max — just set what we want.
+        self.parser.screen_mut().set_scrollback(self.scroll_offset);
+        // Read back the clamped value so our offset stays in bounds.
+        self.scroll_offset = self.parser.screen().scrollback();
+    }
 }

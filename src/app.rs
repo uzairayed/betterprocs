@@ -31,6 +31,8 @@ pub struct UiState {
     pub selection_start: Option<(u16, u16)>,
     /// Mouse selection end (col, row) in absolute terminal coordinates
     pub selection_end: Option<(u16, u16)>,
+    /// Ticks remaining to show "copied" flash highlight
+    pub copy_flash: u8,
 }
 
 pub struct App {
@@ -70,6 +72,7 @@ impl App {
                 show_keymap: true,
                 selection_start: None,
                 selection_end: None,
+                copy_flash: 0,
             },
             process_manager: pm,
             port_killer: PortKiller::new(),
@@ -91,6 +94,15 @@ impl App {
 
             if matches!(self.active_tab, ActiveTab::PortKiller) {
                 self.port_killer.maybe_refresh();
+            }
+
+            // Copy flash countdown
+            if self.ui_state.copy_flash > 0 {
+                self.ui_state.copy_flash -= 1;
+                if self.ui_state.copy_flash == 0 {
+                    self.ui_state.selection_start = None;
+                    self.ui_state.selection_end = None;
+                }
             }
 
             terminal.draw(|frame| render(frame, self))?;
@@ -179,6 +191,7 @@ impl App {
                 let count = self.process_manager.process_count();
                 if idx < count {
                     self.ui_state.selected_process = idx;
+                    self.ui_state.scope = Scope::ProcessList;
                 }
             }
             Action::ClickOutputPane => {
@@ -187,16 +200,18 @@ impl App {
                 self.ui_state.selection_end = None;
             }
             Action::MouseDragStart(col, row) => {
+                self.ui_state.scope = Scope::Terminal;
                 self.ui_state.selection_start = Some((col, row));
                 self.ui_state.selection_end = None;
+                self.ui_state.copy_flash = 0;
             }
             Action::MouseDragEnd(col, row) => {
                 self.ui_state.selection_end = Some((col, row));
             }
             Action::CopySelection => {
                 self.copy_selection_to_clipboard();
-                self.ui_state.selection_start = None;
-                self.ui_state.selection_end = None;
+                // Flash green for ~300ms (6 ticks at 50ms)
+                self.ui_state.copy_flash = 6;
             }
             Action::FocusProcessList => {
                 self.ui_state.scope = Scope::ProcessList;
@@ -221,6 +236,14 @@ impl App {
                 {
                     handle.screen.scroll_up(n as usize);
                 }
+                // If selecting, extend selection upward
+                if self.ui_state.selection_start.is_some() {
+                    let end = self.ui_state.selection_end.unwrap_or(
+                        self.ui_state.selection_start.unwrap(),
+                    );
+                    self.ui_state.selection_end =
+                        Some((end.0, end.1.saturating_sub(n)));
+                }
             }
             Action::ScrollDown(n) => {
                 if let Some(handle) = self
@@ -229,6 +252,16 @@ impl App {
                     .get_mut(self.ui_state.selected_process)
                 {
                     handle.screen.scroll_down(n as usize);
+                }
+                // If selecting, extend selection downward
+                if self.ui_state.selection_start.is_some() {
+                    let end = self.ui_state.selection_end.unwrap_or(
+                        self.ui_state.selection_start.unwrap(),
+                    );
+                    let (_, term_rows) =
+                        crossterm::terminal::size().unwrap_or((80, 24));
+                    self.ui_state.selection_end =
+                        Some((end.0, (end.1 + n).min(term_rows.saturating_sub(2))));
                 }
             }
             Action::SendInput(data) => {
