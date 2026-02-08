@@ -16,15 +16,21 @@ Run all your project's servers and scripts in one terminal. A better alternative
 
 ## Install
 
-**Requires Rust.** If you don't have it: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+### Homebrew (macOS)
 
 ```bash
-git clone https://github.com/yourusername/betterprocs.git
+brew install uzairayed/tap/betterprocs
+```
+
+### From source
+
+Requires [Rust](https://rustup.rs/).
+
+```bash
+git clone https://github.com/uzairayed/betterprocs.git
 cd betterprocs
 cargo install --path .
 ```
-
-Now `betterprocs` is available globally.
 
 ## Usage
 
