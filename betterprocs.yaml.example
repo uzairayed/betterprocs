@@ -1,0 +1,22 @@
+procs:
+  frontend:
+    shell: npm run dev
+    cwd: ./frontend
+    port: 3000
+  backend:
+    shell: cargo run
+    cwd: ./backend
+    port: 8080
+    env:
+      RUST_LOG: debug
+  database:
+    shell: docker compose up postgres
+    autostart: false
+  tests:
+    shell: npm test -- --watch
+    autorestart: true
+
+settings:
+  auto_exit: false
+  mouse: true
+  scrollback: 10000
