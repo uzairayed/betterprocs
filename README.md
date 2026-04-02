@@ -16,15 +16,23 @@ Run all your project's servers and scripts in one terminal. A better alternative
 
 ## Install
 
-### Homebrew (macOS)
+### Homebrew (macOS and Linux)
 
 ```bash
 brew install uzairayed/tap/betterprocs
 ```
 
-### From source
+Works with [Homebrew on Linux](https://docs.brew.sh/Homebrew-on-Linux) too.
+
+### Cargo
 
 Requires [Rust](https://rustup.rs/).
+
+```bash
+cargo install betterprocs
+```
+
+### From source
 
 ```bash
 git clone https://github.com/uzairayed/betterprocs.git
