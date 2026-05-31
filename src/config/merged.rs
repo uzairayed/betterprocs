@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use super::cli::Cli;
 use super::npm::detect_npm_scripts;
@@ -54,16 +54,8 @@ pub fn load_config(cli: &Cli) -> Result<AppConfig> {
         }
     }
 
-    if processes.is_empty() {
-        bail!(
-            "No processes configured.\n\
-             Usage:\n  \
-             betterprocs \"cmd1\" \"cmd2\"      Run commands directly\n  \
-             betterprocs                     Load from betterprocs.yaml\n  \
-             betterprocs --npm               Load scripts from package.json"
-        );
-    }
-
+    // An empty process list is valid for MCP mode (the agent launches
+    // processes via run_command); the TUI path rejects it in main.rs.
     Ok(AppConfig {
         processes,
         auto_exit: cli.auto_exit || auto_exit_from_yaml,

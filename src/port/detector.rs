@@ -36,7 +36,7 @@ pub fn detect_conflicts(configs: &[ProcessConfig]) -> Vec<PortConflict> {
 }
 
 /// Find which process is listening on a given port using lsof.
-fn find_process_on_port(port: u16) -> Option<(u32, String)> {
+pub fn find_process_on_port(port: u16) -> Option<(u32, String)> {
     let output = Command::new("lsof")
         .args(["-ti", &format!(":{}", port)])
         .output()

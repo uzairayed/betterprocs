@@ -1,6 +1,6 @@
 [package]
 name = "betterprocs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
@@ -18,3 +18,5 @@ anyhow = "1"
 arboard = "3"
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
+rmcp = { version = "1.7.0", features = ["server", "transport-io", "macros"] }
+schemars = "1.2.1"

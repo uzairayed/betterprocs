@@ -87,6 +87,40 @@ This reads all scripts from your `package.json`.
 
 If your project already has an `mprocs.yaml`, betterprocs picks it up automatically. No changes needed.
 
+## MCP server (AI agents)
+
+betterprocs can run headless as an [MCP](https://modelcontextprotocol.io) server over stdio,
+letting an AI agent launch, read, drive, and stop processes for you — no TUI:
+
+```bash
+betterprocs mcp                       # agent launches everything via run_command
+betterprocs mcp --config procs.yaml   # preload processes from a config
+betterprocs --npm mcp                 # preload package.json scripts
+```
+
+Add it to an MCP client (e.g. Claude Code / Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "betterprocs": { "command": "betterprocs", "args": ["mcp"] }
+  }
+}
+```
+
+Tools exposed:
+
+| Tool | What it does |
+|------|--------------|
+| `list_processes` | Status, pid, command, cwd, and port for every managed process |
+| `run_command` | Launch a new arbitrary shell command as a managed process |
+| `start_process` / `stop_process` / `restart_process` / `force_kill_process` | Control a process by name |
+| `read_output` | Read recent terminal output (including scrollback) |
+| `copy_output` | Same as `read_output`, and copies the text to the OS clipboard |
+| `send_input` | Type into a process's stdin |
+| `find_port` / `kill_port` | Find or kill whatever is listening on a TCP port |
+| `search_processes` / `kill_pid` | Search all OS processes by name/command, or kill one by PID |
+
 ## Keyboard shortcuts
 
 ### Process list
@@ -146,7 +180,10 @@ betterprocs fixes several mprocs issues:
 ## CLI options
 
 ```
-betterprocs [OPTIONS] [COMMANDS]...
+betterprocs [OPTIONS] [COMMANDS]... [COMMAND]
+
+Commands:
+  mcp                      Run as a headless MCP server over stdio (for AI agents)
 
 Arguments:
   [COMMANDS]...            Commands to run
