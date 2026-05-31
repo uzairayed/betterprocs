@@ -12,6 +12,7 @@ Run all your project's servers and scripts in one terminal. A better alternative
 - Find and kill processes hogging your ports (built-in port killer)
 - Select and copy text from process output
 - Scroll through output history
+- Drive everything from an AI agent via the built-in [MCP server](#mcp-server-ai-agents)
 - Auto-detects existing `mprocs.yaml` configs — drop-in replacement
 
 ## Install
